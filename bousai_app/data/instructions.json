@@ -4,18 +4,20 @@
     "target": "住民",
     "content": "B避難所へ避難してください",
     "shelter": "片瀬小学校",
-    "status": "解除",
+    "status": "対応中",
     "created_at": "2026年07月14日 18:38",
-    "updated_at": "2026年07月14日 18:38"
+    "updated_at": "2026年10月18日 14:33",
+    "updated_at_iso": "2026-10-18T14:33:33+09:00"
   },
   {
     "id": 3,
     "target": "防災課",
     "content": "A地区の現地確認",
     "shelter": "",
-    "status": "完了",
+    "status": "対応中",
     "created_at": "2026年07月14日 18:38",
-    "updated_at": "2026年07月14日 18:38"
+    "updated_at": "2026年10月18日 14:33",
+    "updated_at_iso": "2026-10-18T14:33:36+09:00"
   },
   {
     "id": 2,

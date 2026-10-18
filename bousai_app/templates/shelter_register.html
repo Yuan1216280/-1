@@ -2,7 +2,7 @@
 
 {% block content %}
 <h2>避難所登録</h2>
-<p>新しい避難所情報を登録します。</p>
+<p>避難所名と開設状況を入力してください。地図に表示する場合は緯度・経度を両方入力します。</p>
 
 <!-- 成功・エラーメッセージ表示 -->
 {% if success %}
@@ -14,10 +14,33 @@
 {% endif %}
 
 <form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <p>
     <label for="name">避難所名（必須）</label><br>
-    <input type="text" id="name" name="name">
+    <input type="text" id="name" name="name" maxlength="100" required>
   </p>
+  <p>
+    <label for="address">住所</label><br>
+    <input type="text" id="address" name="address" maxlength="200">
+  </p>
+  <p>
+    <label for="opening_status">開設状況</label><br>
+    <select id="opening_status" name="opening_status" required>
+      <option value="未開設" selected>未開設</option>
+      <option value="開設中">開設中</option>
+    </select>
+  </p>
+  <fieldset>
+    <legend>地図の位置（任意。緯度・経度を両方入力）</legend>
+    <p>
+      <label for="latitude">緯度</label><br>
+      <input type="number" id="latitude" name="latitude" min="-90" max="90" step="any">
+    </p>
+    <p>
+      <label for="longitude">経度</label><br>
+      <input type="number" id="longitude" name="longitude" min="-180" max="180" step="any">
+    </p>
+  </fieldset>
   <p><button type="submit">登録</button></p>
 </form>
 {% endblock %}

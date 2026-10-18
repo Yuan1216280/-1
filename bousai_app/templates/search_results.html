@@ -23,7 +23,7 @@
     text-align: center;
   }
   .no-results p { margin: 0; font-size: 18px; font-weight: 700; }
-  .retry-button {
+  .return-button {
     display: inline-flex;
     min-height: 44px;
     align-items: center;
@@ -35,10 +35,11 @@
     font-weight: 700;
     text-decoration: none;
   }
-  .retry-button:hover { background: #1c478b; }
-  .retry-button:focus-visible { outline: 3px solid #8cb6f0; outline-offset: 3px; }
-  .results-links { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px; }
-  .results-links a { color: #2457a7; }
+  .return-button:hover { background: #1c478b; }
+  .return-button:focus-visible { outline: 3px solid #8cb6f0; outline-offset: 3px; }
+  .return-button.is-secondary { border: 1px solid #cbd6e4; background: #fff; color: #2457a7 !important; }
+  .return-button.is-secondary:hover { background: #edf3fb; }
+  .results-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
   @media (max-width: 600px) {
     .results-page { width: calc(100% - 24px); margin: 22px auto; }
     .results-page h2 { font-size: 21px; }
@@ -73,13 +74,12 @@
   {% else %}
     <div class="no-results" role="status">
       <p>条件に合う避難所がありません</p>
-      <a class="retry-button" href="/shelter_search">条件を変えて再検索</a>
     </div>
   {% endif %}
 
   <p class="results-links">
-    {% if results %}<a href="/shelter_search">検索画面に戻る</a>{% endif %}
-    <a href="/">トップページへ戻る</a>
+    <a class="return-button" href="/shelter_search">{% if results %}検索画面に戻る{% else %}条件を変えて再検索{% endif %}</a>
+    <a class="return-button is-secondary" href="/">トップページへ戻る</a>
   </p>
 </section>
 {% endblock %}

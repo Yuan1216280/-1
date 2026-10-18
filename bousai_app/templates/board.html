@@ -3,23 +3,189 @@
 {% block title %}指示・発信ボード - 防災アプリ{% endblock %}
 
 {% block content %}
-<h2>発信ボード</h2>
-<p>住民向けの発信を登録・確認できます。</p>
+<style>
+  .board-page { display: grid; width: min(100% - 32px, 1100px); gap: 20px; margin: 24px auto 40px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .board-panel { padding: 22px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+  .board-panel h2, .board-panel h3 { margin: 0 0 16px; color: #2457a7; }
+  .board-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .board-field { display: grid; align-content: start; gap: 6px; }
+  .board-field.is-wide { grid-column: 1 / -1; }
+  .board-field label { color: #34465a; font-weight: 700; }
+  .board-field input, .board-field select, .board-field textarea { width: 100%; padding: 10px; border: 1px solid #c9d3df; border-radius: 4px; color: #26354a; font: inherit; }
+  .board-field textarea { min-height: 110px; resize: vertical; }
+  .board-actions { grid-column: 1 / -1; }
+  .board-actions button, .status-form button { min-height: 42px; padding: 8px 16px; border: 0; border-radius: 4px; background: #2457a7; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  .board-actions button:hover, .status-form button:hover { background: #1c478b; }
+  .board-error { padding: 12px; border-left: 4px solid #b9382a; background: #fff0ed; color: #8f281e; }
+  .board-success { padding: 12px; border-left: 4px solid #208248; background: #edf8f0; color: #176b3a; }
+  .instruction-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+  .instruction-card { display: grid; gap: 10px; padding: 16px; border: 1px solid #dce3ed; border-radius: 6px; background: #fff; }
+  .instruction-card.is-resolved { border-color: #e2e5e9; background: #f5f6f7; color: #697586; }
+  .instruction-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .instruction-target { color: #315174; font-weight: 700; }
+  .instruction-state { display: inline-flex; padding: 4px 9px; border-radius: 4px; background: #e7f4eb; color: #176b3a; font-weight: 700; }
+  .is-resolved .instruction-state { background: #e7e9ec; color: #5e6875; }
+  .instruction-body { margin: 0; color: #26354a; line-height: 1.6; overflow-wrap: anywhere; }
+  .is-resolved .instruction-body { color: #687383; }
+  .instruction-place, .instruction-date { margin: 0; color: #66758a; font-size: 13px; }
+  .instruction-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .status-form { margin: 0; }
+  .status-form button.is-danger { background: #a9342d; }
+  .status-form button.is-danger:hover { background: #87251f; }
+  button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #8cb6f0; outline-offset: 2px; }
+  .empty-state { margin: 0; padding: 18px; border-radius: 5px; background: #f5f7fa; color: #5b6b7e; }
+  @media (max-width: 650px) {
+    .board-page { width: calc(100% - 24px); gap: 14px; margin-top: 18px; }
+    .board-panel { padding: 16px; }
+    .board-form { grid-template-columns: 1fr; }
+    .board-field.is-wide, .board-actions { grid-column: auto; }
+    .instruction-card { padding: 13px; }
+  }
+</style>
 
-<!-- 発信一覧 -->
-<h3>発信一覧</h3>
-{% if instructions %}
-<table border="1" cellpadding="5">
-  <tr>
-    <th>内容</th>
-  </tr>
-  {% for inst in instructions %}
-  <tr>
-    <td>{{ inst.content }}{% if inst.shelter %}（避難先: {{ inst.shelter }}）{% endif %}</td>
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p>登録されている指示はありません。</p>
-{% endif %}
+<div class="board-page">
+  <section class="board-panel" aria-labelledby="board-form-title">
+    <h2 id="board-form-title">新しい指示を出す</h2>
+    {% if error %}<p class="board-error" role="alert">{{ error }}</p>{% endif %}
+    {% if request.args.get('updated') %}<p class="board-success" role="status">指示を更新しました。</p>{% endif %}
+    <form class="board-form" method="post" action="{{ url_for('board') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="board-field">
+        <label for="target">宛先</label>
+        <select id="target" name="target" required>
+          <option value="住民">住民</option>
+          <option value="防災課">職員（防災課）</option>
+          <option value="道路管理課">職員（道路管理課）</option>
+          <option value="職員">職員（その他）</option>
+          <option value="__custom__">その他（宛先を入力）</option>
+        </select>
+        <label for="custom-target">その他の宛先</label>
+        <input id="custom-target" name="custom_target" type="text" maxlength="80" disabled>
+      </div>
+      <div class="board-field is-wide">
+        <label for="content">指示内容（必須）</label>
+        <textarea id="content" name="content" maxlength="2000" required aria-describedby="content-help"></textarea>
+        <span id="content-help">2000文字以内</span>
+      </div>
+      <div class="board-field is-wide">
+        <label for="shelter">避難先・場所（任意）</label>
+        <select id="shelter" name="shelter">
+          <option value="">指定しない</option>
+          {% for shelter in shelters %}
+          <option value="{{ shelter.name }}">{{ shelter.name }}</option>
+          {% endfor %}
+          <option value="__custom__">その他（場所を入力）</option>
+        </select>
+        <label for="custom-place">その他の場所（任意）</label>
+        <input id="custom-place" name="custom_place" type="text" maxlength="100">
+      </div>
+      <div class="board-field">
+        <label for="urgency">緊急度</label>
+        <select id="urgency" name="urgency" required>
+          <option value="通常">通常</option>
+          <option value="高・緊急">高・緊急</option>
+        </select>
+      </div>
+      <div class="board-actions"><button type="submit">発信する</button></div>
+    </form>
+  </section>
+
+  <section class="board-panel" id="active-instructions" aria-labelledby="active-title">
+    <h2 id="active-title">登録済みの指示（対応中）</h2>
+    {% if active_instructions %}
+      <ul class="instruction-list">
+        {% for inst in active_instructions %}
+        <li class="instruction-card">
+          <div class="instruction-head">
+            <span class="instruction-target">{{ inst.get('target', '住民') }}向け</span>
+            <span class="instruction-state">対応中</span>
+            {% if inst.get('urgency') == '高・緊急' %}<strong class="urgent-label">緊急</strong>{% endif %}
+          </div>
+          <p class="instruction-body">{{ inst.get('content', '') }}</p>
+          {% if inst.get('shelter') %}<p class="instruction-place">場所・避難先: {{ inst.get('shelter') }}</p>{% endif %}
+          <p class="instruction-date">登録日時: {{ inst.get('created_at', '日時不明') }}</p>
+          <div class="instruction-actions">
+            {% if inst.get('_audience') == 'resident' %}
+            <form class="status-form" method="post" action="{{ url_for('update_instruction_status', instruction_id=inst.get('id')) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="expected_status" value="対応中">
+              <input type="hidden" name="action" value="release">
+              <button class="is-danger" type="submit">解除</button>
+            </form>
+            {% else %}
+            <form class="status-form" method="post" action="{{ url_for('update_instruction_status', instruction_id=inst.get('id')) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="expected_status" value="対応中">
+              <input type="hidden" name="action" value="complete">
+              <button type="submit">完了</button>
+            </form>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty-state">対応中の指示はありません。</p>
+    {% endif %}
+  </section>
+
+  <section class="board-panel" id="resolved-instructions" aria-labelledby="resolved-title">
+    <h2 id="resolved-title">完了・解除済み</h2>
+    {% if resolved_instructions %}
+      <ul class="instruction-list">
+        {% for inst in resolved_instructions %}
+        <li class="instruction-card is-resolved">
+          <div class="instruction-head">
+            <span class="instruction-target">{{ inst.get('target', '住民') }}向け</span>
+            <span class="instruction-state">{{ inst.get('_display_status') }}</span>
+          </div>
+          <p class="instruction-body">{{ inst.get('content', '') }}</p>
+          {% if inst.get('shelter') %}<p class="instruction-place">場所・避難先: {{ inst.get('shelter') }}</p>{% endif %}
+          <p class="instruction-date">登録日時: {{ inst.get('created_at', '日時不明') }}{% if inst.get('updated_at') %} / 更新日時: {{ inst.get('updated_at') }}{% endif %}</p>
+          <div class="instruction-actions">
+            {% if inst.get('_audience') == 'resident' and inst.get('_display_status') == '解除' %}
+            <form class="status-form" method="post" action="{{ url_for('update_instruction_status', instruction_id=inst.get('id')) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="expected_status" value="解除">
+              <input type="hidden" name="action" value="undo_release">
+              <button type="submit">解除取り消し</button>
+            </form>
+            {% elif inst.get('_audience') == 'staff' and inst.get('_display_status') == '完了' %}
+            <form class="status-form" method="post" action="{{ url_for('update_instruction_status', instruction_id=inst.get('id')) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="expected_status" value="完了">
+              <input type="hidden" name="action" value="undo_complete">
+              <button type="submit">完了取り消し</button>
+            </form>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty-state">完了・解除済みの指示はありません。</p>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const targetSelect = document.getElementById('target');
+  const customTarget = document.getElementById('custom-target');
+  targetSelect.addEventListener('change', function() {
+    const isCustomTarget = targetSelect.value === '__custom__';
+    customTarget.disabled = !isCustomTarget;
+    customTarget.required = isCustomTarget;
+    if (!isCustomTarget) customTarget.value = '';
+  });
+
+  const shelterSelect = document.getElementById('shelter');
+  const customPlace = document.getElementById('custom-place');
+  shelterSelect.addEventListener('change', function() {
+    customPlace.required = shelterSelect.value === '__custom__';
+    if (shelterSelect.value !== '__custom__') customPlace.value = '';
+  });
+});
+</script>
 {% endblock %}
