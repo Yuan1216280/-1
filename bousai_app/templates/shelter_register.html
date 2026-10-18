@@ -1,46 +1,135 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>避難所登録</h2>
-<p>避難所名と開設状況を入力してください。地図に表示する場合は緯度・経度を両方入力します。</p>
+<style>
+  .shelter-page { display: grid; width: min(100% - 32px, 1100px); gap: 20px; margin: 24px auto 40px; }
+  .shelter-section { padding: 22px; border: 1px solid #dce3ed; border-radius: 6px; background: #fff; }
+  .shelter-section h2 { margin: 0 0 16px; color: #2457a7; }
+  .shelter-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+  .shelter-field { display: grid; align-content: start; gap: 6px; }
+  .shelter-field.is-wide, .shelter-form button { grid-column: 1 / -1; }
+  .shelter-field input:not([type="checkbox"]), .shelter-field select { width: 100%; min-height: 42px; padding: 9px; border: 1px solid #c9d3df; border-radius: 4px; background: #fff; color: #26354a; font: inherit; }
+  .choice-list { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; border: 0; }
+  .choice-list label { display: inline-flex; align-items: center; gap: 7px; }
+  .form-error, .form-success { padding: 12px; border-left: 4px solid #b9382a; background: #fff0ed; color: #8f281e; }
+  .form-success { border-color: #208248; background: #edf8f0; color: #176b3a; }
+  .shelter-form button, .shelter-table button { min-height: 40px; padding: 8px 14px; border: 0; border-radius: 4px; background: #2457a7; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  .shelter-table { width: 100%; border-collapse: collapse; text-align: left; }
+  .shelter-table th, .shelter-table td { padding: 12px 10px; border-bottom: 1px solid #e7ebf0; vertical-align: top; }
+  .shelter-table th { color: #27466f; background: #edf3fb; }
+  .shelter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .shelter-actions form { margin: 0; }
+  .shelter-actions select { min-height: 40px; padding: 6px; border: 1px solid #c9d3df; border-radius: 4px; font: inherit; }
+  .shelter-table button.is-danger { background: #a9342d; }
+  .edit-link { display: inline-flex; min-height: 40px; align-items: center; padding: 7px 12px; border: 1px solid #bdcad9; border-radius: 4px; color: #2457a7; font-weight: 700; text-decoration: none; }
+  .empty-state { margin: 0; color: #5b6b7e; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #8cb6f0; outline-offset: 2px; }
+  @media (max-width: 720px) {
+    .shelter-page { width: calc(100% - 24px); gap: 14px; }
+    .shelter-section { padding: 16px; }
+    .shelter-form { grid-template-columns: 1fr; }
+    .shelter-field.is-wide, .shelter-form button { grid-column: auto; }
+    .table-wrap { overflow-x: auto; }
+    .shelter-table { min-width: 760px; }
+  }
+</style>
 
-<!-- 成功・エラーメッセージ表示 -->
-{% if success %}
-  <p>{{ message }}</p>
-{% endif %}
+<div class="shelter-page">
+  <section class="shelter-section" aria-labelledby="shelter-form-title">
+    <h2 id="shelter-form-title">{% if editing %}避難所情報を編集{% else %}避難所を登録{% endif %}</h2>
+    {% if error %}<p class="form-error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
+    {% if notice %}<p class="form-success" role="status" aria-live="polite">{{ notice }}</p>{% endif %}
+    <form class="shelter-form" method="post" action="{% if editing %}{{ url_for('edit_shelter', shelter_id=editing.id) }}{% else %}{{ url_for('shelter_register') }}{% endif %}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="shelter-field">
+        <label for="name">避難所名（必須）</label>
+        <input id="name" name="name" type="text" maxlength="100" required value="{{ values.get('name', '') }}" {% if values.get('error_field') == 'name' %}autofocus{% endif %}>
+      </div>
+      <div class="shelter-field">
+        <label for="address">住所（必須）</label>
+        <input id="address" name="address" type="text" maxlength="200" required value="{{ values.get('address', '') }}" {% if values.get('error_field') == 'address' %}autofocus{% endif %}>
+      </div>
+      <div class="shelter-field">
+        <label for="capacity">収容人数（必須・1〜1,000,000人）</label>
+        <input id="capacity" name="capacity" type="number" min="1" max="1000000" step="1" required value="{{ values.get('capacity', '') }}" {% if values.get('error_field') == 'capacity' %}autofocus{% endif %}>
+      </div>
+      {% if editing %}
+      <div class="shelter-field">
+        <label for="opening_status">開設状況</label>
+        <select id="opening_status" name="opening_status" required>
+          {% for status in opening_statuses %}<option value="{{ status }}" {% if values.get('opening_status', '未設定') == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <fieldset class="shelter-field is-wide" {% if values.get('error_field') == 'disaster_types' %}tabindex="-1" autofocus{% endif %}>
+        <legend>対応災害種別</legend>
+        <div class="choice-list">
+          {% for kind in disaster_types %}<label><input type="checkbox" name="disaster_types" value="{{ kind }}" {% if kind in values.get('disaster_types', []) %}checked{% endif %}>{{ kind }}</label>{% endfor %}
+        </div>
+      </fieldset>
+      <fieldset class="shelter-field is-wide" {% if values.get('error_field') == 'facilities' %}tabindex="-1" autofocus{% endif %}>
+        <legend>設備・対応機能</legend>
+        <div class="choice-list">
+          {% for facility in facilities %}<label><input type="checkbox" name="facilities" value="{{ facility }}" {% if facility in values.get('facilities', []) %}checked{% endif %}>{{ facility }}</label>{% endfor %}
+        </div>
+      </fieldset>
+      <fieldset class="shelter-field is-wide">
+        <legend>地図の位置（任意。緯度・経度は両方入力）</legend>
+        <div class="shelter-form">
+          <div class="shelter-field"><label for="latitude">緯度</label><input id="latitude" name="latitude" type="number" min="-90" max="90" step="any" value="{{ values.get('latitude', '') }}" {% if values.get('error_field') == 'latitude' %}autofocus{% endif %}></div>
+          <div class="shelter-field"><label for="longitude">経度</label><input id="longitude" name="longitude" type="number" min="-180" max="180" step="any" value="{{ values.get('longitude', '') }}"></div>
+        </div>
+      </fieldset>
+      <button type="submit">{% if editing %}変更を保存{% else %}登録する{% endif %}</button>
+    </form>
+  </section>
 
-{% if error %}
-  <p>{{ message }}</p>
-{% endif %}
+  {% if editing %}<p><a class="edit-link" href="{{ url_for('shelter_register') }}">一覧に戻る</a></p>{% endif %}
 
-<form method="POST">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <p>
-    <label for="name">避難所名（必須）</label><br>
-    <input type="text" id="name" name="name" maxlength="100" required>
-  </p>
-  <p>
-    <label for="address">住所</label><br>
-    <input type="text" id="address" name="address" maxlength="200">
-  </p>
-  <p>
-    <label for="opening_status">開設状況</label><br>
-    <select id="opening_status" name="opening_status" required>
-      <option value="未開設" selected>未開設</option>
-      <option value="開設中">開設中</option>
-    </select>
-  </p>
-  <fieldset>
-    <legend>地図の位置（任意。緯度・経度を両方入力）</legend>
-    <p>
-      <label for="latitude">緯度</label><br>
-      <input type="number" id="latitude" name="latitude" min="-90" max="90" step="any">
-    </p>
-    <p>
-      <label for="longitude">経度</label><br>
-      <input type="number" id="longitude" name="longitude" min="-180" max="180" step="any">
-    </p>
-  </fieldset>
-  <p><button type="submit">登録</button></p>
-</form>
+  <section class="shelter-section" aria-labelledby="shelter-list-title">
+    <h2 id="shelter-list-title">登録済み避難所</h2>
+    {% if shelters %}
+    <div class="table-wrap">
+      <table class="shelter-table">
+        <thead><tr><th scope="col">避難所</th><th scope="col">住所・収容人数</th><th scope="col">対応災害</th><th scope="col">設備</th><th scope="col">開設状況・操作</th></tr></thead>
+        <tbody>
+          {% for shelter in shelters %}
+          <tr>
+            <td>{{ shelter.get('name') or '名称未登録' }}</td>
+            <td>{{ shelter.get('address') or '住所未登録' }}<br>収容人数: {% if shelter.get('capacity') %}{{ shelter.capacity }}人{% else %}未登録{% endif %}</td>
+            <td>{% if shelter.get('disaster_types') %}{{ shelter.disaster_types | join('、') }}{% else %}未登録{% endif %}</td>
+            <td>{% if shelter.get('facilities') %}{{ shelter.facilities | join('、') }}{% else %}未登録{% endif %}</td>
+            <td>
+              <div class="shelter-actions">
+                <form method="post" action="{{ url_for('update_shelter_status', shelter_id=shelter.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <label class="sr-only" for="status-{{ loop.index }}">{{ shelter.get('name') or '避難所' }}の開設状況</label>
+                  <select id="status-{{ loop.index }}" name="opening_status">
+                    {% for status in opening_statuses %}<option value="{{ status }}" {% if shelter._display_opening_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+                  </select>
+                  <button type="submit">状態更新</button>
+                </form>
+                <a class="edit-link" href="{{ url_for('edit_shelter', shelter_id=shelter.id) }}">編集</a>
+                <form method="post" action="{{ url_for('delete_shelter', shelter_id=shelter.id) }}" data-confirm-name="{{ shelter.get('name') or '名称未登録の避難所' }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="is-danger" type="submit">削除</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<p class="empty-state">登録済みの避難所はありません。</p>{% endif %}
+  </section>
+</div>
+<script>
+document.querySelectorAll('form[data-confirm-name]').forEach(function(form) {
+  form.addEventListener('submit', function(event) {
+    if (!window.confirm(`「${form.dataset.confirmName}」を削除します。この操作は取り消せません。`)) event.preventDefault();
+  });
+});
+</script>
 {% endblock %}

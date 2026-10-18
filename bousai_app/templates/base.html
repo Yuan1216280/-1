@@ -93,11 +93,11 @@
         <a href="{{ url_for('shelter_search') }}"{% if current_endpoint == 'shelter_search' or current_endpoint in ('all_shelters', 'search_results') %} aria-current="page"{% endif %}>避難所検索</a>
         <a href="{{ url_for('shelter_register') }}"{% if current_endpoint == 'shelter_register' %} aria-current="page"{% endif %}>避難所登録</a>
         <a href="{{ url_for('board') }}"{% if current_endpoint == 'board' %} aria-current="page"{% endif %}>指示ボード</a>
-        <a href="{{ url_for('login') }}"{% if current_endpoint == 'login' %} aria-current="page"{% endif %}>ログイン</a>
         {% if session.logged_in %}
           <span class="nav-status">ログイン中{% if session.username %}（{{ session.username }}）{% endif %}</span>
           <a href="{{ url_for('logout') }}">ログアウト</a>
         {% else %}
+          <a href="{{ url_for('login') }}"{% if current_endpoint == 'login' %} aria-current="page"{% endif %}>ログイン</a>
           <span class="nav-status">未ログイン</span>
         {% endif %}
       </nav>

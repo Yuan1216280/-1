@@ -29,10 +29,18 @@
   .information-item { display: grid; gap: 8px; padding: 14px; border: 1px solid #e3e9f0; border-radius: 6px; }
   .information-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: #64748b; font-size: 12px; }
   .type-label, .urgency-label, .status-label { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 4px; background: #edf3fb; color: #315b91; font-weight: 700; }
+    .type-icon { display: inline-grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: #fff; color: #244f83; font-size: 12px; font-weight: 800; }
   .urgency-label { background: #b9382a; color: #fff; }
   .status-label { background: #eef1f4; color: #4e5f73; }
   .information-content { margin: 0; color: #25364a; line-height: 1.6; overflow-wrap: anywhere; }
   .information-detail { margin: 0; color: #52647a; font-size: 13px; }
+    .recent-instruction-list { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+    .recent-instruction { display: grid; gap: 8px; padding: 14px; border: 1px solid #e3e9f0; border-radius: 6px; }
+    .recent-instruction-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .recent-instruction-body { margin: 0; color: #25364a; line-height: 1.6; overflow-wrap: anywhere; }
+    .recent-instruction-detail { margin: 0; color: #52647a; font-size: 13px; }
+    .recent-instruction-state { display: inline-flex; padding: 3px 8px; border-radius: 4px; background: #e7f4eb; color: #176b3a; font-size: 12px; font-weight: 700; }
+    .recent-instruction-state.is-resolved { background: #eef1f4; color: #4e5f73; }
   .map-frame { position: relative; margin-top: 14px; }
   .map-view { height: 360px; overflow: hidden; border-radius: 7px; background: #d8e7ee; }
   .map-message { margin-top: 10px; font-size: 13px; }
@@ -60,6 +68,13 @@
       <p class="info-message">最新情報を確認しています...</p>
     </div>
   </section>
+
+    <section class="home-panel" aria-labelledby="recent-instructions-heading">
+        <h2 class="panel-heading" id="recent-instructions-heading">新着指示</h2>
+        <div id="recentInstructions" aria-live="polite" aria-busy="true">
+            <p class="info-message">住民向け指示を読み込んでいます...</p>
+        </div>
+    </section>
 
   <div class="home-grid">
     <section class="home-panel" aria-labelledby="information-heading">
@@ -143,6 +158,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return Number.isNaN(parsed) ? 0 : parsed;
     }
 
+    function warningIcon(name) {
+        const icons = [
+            [/洪水/, '水'], [/津波|波浪/, '波'], [/高潮/, '潮'],
+            [/土砂/, '土'], [/大雨|雨/, '雨'], [/雪|着氷|着雪/, '雪'],
+            [/暴風|強風|風雪|風/, '風'], [/雷/, '雷'], [/火山|火災/, '火'],
+        ];
+        const match = icons.find(function(entry) { return entry[0].test(name); });
+        return match ? match[1] : '!';
+    }
+
     function buildInformationItems() {
         const items = [];
         state.warnings.forEach(function(warning) {
@@ -150,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 id: `weather-${warning.code}`,
                 type: 'weather',
                 typeLabel: '警報・注意報',
-                icon: '!',
+                icon: warningIcon(warning.name),
                 iconLabel: '警報',
                 content: `${warning.name}（${warning.status}）`,
                 timestamp: state.weatherReportTime || '発表日時不明',
@@ -164,7 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 id: `instruction-${instruction.id}`,
                 type: 'instruction',
                 typeLabel: '指示',
-                icon: '指',
+                icon: '',
                 iconLabel: '指示',
                 content: instruction.content,
                 timestamp: instruction.created_at || '発信日時不明',
@@ -178,6 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderInformation() {
+        renderRecentInstructions();
         const filter = informationFilter.value;
         const items = buildInformationItems().filter(item => filter === 'all' || item.type === filter);
         informationList.replaceChildren();
@@ -201,7 +227,14 @@ document.addEventListener('DOMContentLoaded', function() {
             card.id = item.id;
             card.tabIndex = -1;
             const meta = makeElement('div', 'information-meta');
-            meta.append(makeElement('span', 'type-label', `${item.icon} ${item.typeLabel}`));
+            const typeLabel = makeElement('span', 'type-label');
+            if (item.icon) {
+                const icon = makeElement('span', 'type-icon', item.icon);
+                icon.setAttribute('aria-hidden', 'true');
+                typeLabel.append(icon);
+            }
+            typeLabel.append(makeElement('span', '', item.typeLabel));
+            meta.append(typeLabel);
             if (item.urgency === '高・緊急') meta.append(makeElement('span', 'urgency-label', '緊急'));
             if (item.type === 'instruction') meta.append(makeElement('span', 'status-label', item.active ? '発信中' : item.detail.split('状態: ').pop()));
             meta.append(makeElement('time', '', item.timestamp));
@@ -210,6 +243,43 @@ document.addEventListener('DOMContentLoaded', function() {
             list.append(card);
         });
         informationList.append(list);
+    }
+
+    function renderRecentInstructions() {
+        const container = document.getElementById('recentInstructions');
+        container.replaceChildren();
+        container.setAttribute('aria-busy', String(state.instructionsBusy));
+        if (!state.instructionsLoaded) {
+            const message = state.instructionsError
+                ? '住民向け指示を取得できませんでした。'
+                : '住民向け指示を読み込んでいます...';
+            container.append(makeElement('p', 'info-message', message));
+            return;
+        }
+
+        const recent = state.instructions.slice(0, 5);
+        if (!recent.length) {
+            container.append(makeElement('p', 'info-message', '住民向けの指示はありません。'));
+            return;
+        }
+
+        const list = makeElement('ul', 'recent-instruction-list');
+        recent.forEach(function(instruction) {
+            const item = makeElement('li', 'recent-instruction');
+            const header = makeElement('div', 'recent-instruction-head');
+            header.append(makeElement('span', 'type-label', `${instruction.target || '住民'}向け`));
+            const isActive = instruction.status === '対応中' || instruction.status === '発信中';
+            header.append(makeElement('span', `recent-instruction-state${isActive ? '' : ' is-resolved'}`, instruction.status || '状態不明'));
+            if (instruction.urgency === '高・緊急') header.append(makeElement('strong', 'urgency-label', '緊急'));
+            item.append(header, makeElement('p', 'recent-instruction-body', instruction.content || '内容未登録'));
+            const details = [
+                instruction.shelter ? `避難先: ${instruction.shelter}` : '',
+                `発信日時: ${instruction.created_at || '日時不明'}`,
+            ].filter(Boolean).join(' / ');
+            item.append(makeElement('p', 'recent-instruction-detail', details));
+            list.append(item);
+        });
+        container.append(list);
     }
 
     function renderEmergency() {

@@ -35,6 +35,10 @@
   .status-form button.is-danger:hover { background: #87251f; }
   button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #8cb6f0; outline-offset: 2px; }
   .empty-state { margin: 0; padding: 18px; border-radius: 5px; background: #f5f7fa; color: #5b6b7e; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .preview-panel { grid-column: 1 / -1; padding: 14px; border: 1px solid #dce3ed; border-radius: 5px; background: #f5f8fb; }
+  .preview-panel h3 { margin: 0 0 8px; color: #27466f; }
+  .preview-panel p { margin: 5px 0; overflow-wrap: anywhere; }
   @media (max-width: 650px) {
     .board-page { width: calc(100% - 24px); gap: 14px; margin-top: 18px; }
     .board-panel { padding: 16px; }
@@ -47,45 +51,52 @@
 <div class="board-page">
   <section class="board-panel" aria-labelledby="board-form-title">
     <h2 id="board-form-title">新しい指示を出す</h2>
-    {% if error %}<p class="board-error" role="alert">{{ error }}</p>{% endif %}
-    {% if request.args.get('updated') %}<p class="board-success" role="status">指示を更新しました。</p>{% endif %}
+    {% if error %}<p class="board-error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
+    {% if request.args.get('created') %}<p class="board-success" role="status" aria-live="polite">指示を登録しました。</p>{% elif request.args.get('updated') %}<p class="board-success" role="status" aria-live="polite">指示を更新しました。</p>{% endif %}
     <form class="board-form" method="post" action="{{ url_for('board') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="board-field">
         <label for="target">宛先</label>
         <select id="target" name="target" required>
-          <option value="住民">住民</option>
-          <option value="防災課">職員（防災課）</option>
-          <option value="道路管理課">職員（道路管理課）</option>
-          <option value="職員">職員（その他）</option>
-          <option value="__custom__">その他（宛先を入力）</option>
+          <option value="住民" {% if form_values.get('target', '住民') == '住民' %}selected{% endif %}>住民</option>
+          <option value="観光客" {% if form_values.get('target') == '観光客' %}selected{% endif %}>観光客</option>
+          <option value="住民・観光客" {% if form_values.get('target') == '住民・観光客' %}selected{% endif %}>住民・観光客</option>
+          <option value="防災課" {% if form_values.get('target') == '防災課' %}selected{% endif %}>職員（防災課）</option>
+          <option value="道路管理課" {% if form_values.get('target') == '道路管理課' %}selected{% endif %}>職員（道路管理課）</option>
+          <option value="職員" {% if form_values.get('target') == '職員' %}selected{% endif %}>職員（その他）</option>
+          <option value="__custom__" {% if form_values.get('target') == '__custom__' %}selected{% endif %}>その他（宛先を入力）</option>
         </select>
         <label for="custom-target">その他の宛先</label>
-        <input id="custom-target" name="custom_target" type="text" maxlength="80" disabled>
+        <input id="custom-target" name="custom_target" type="text" maxlength="80" value="{{ form_values.get('custom_target', '') }}" {% if form_values.get('target') != '__custom__' %}disabled{% endif %}>
       </div>
       <div class="board-field is-wide">
         <label for="content">指示内容（必須）</label>
-        <textarea id="content" name="content" maxlength="2000" required aria-describedby="content-help"></textarea>
+        <textarea id="content" name="content" maxlength="2000" required aria-describedby="content-help">{{ form_values.get('content', '') }}</textarea>
         <span id="content-help">2000文字以内</span>
       </div>
       <div class="board-field is-wide">
         <label for="shelter">避難先・場所（任意）</label>
         <select id="shelter" name="shelter">
-          <option value="">指定しない</option>
+          <option value="" {% if not form_values.get('shelter') %}selected{% endif %}>指定しない</option>
           {% for shelter in shelters %}
-          <option value="{{ shelter.name }}">{{ shelter.name }}</option>
+          <option value="{{ shelter.id }}" {% if form_values.get('shelter') == shelter.name or form_values.get('shelter') == shelter.id|string %}selected{% endif %}>{{ shelter.name }}</option>
           {% endfor %}
-          <option value="__custom__">その他（場所を入力）</option>
         </select>
-        <label for="custom-place">その他の場所（任意）</label>
-        <input id="custom-place" name="custom_place" type="text" maxlength="100">
       </div>
       <div class="board-field">
         <label for="urgency">緊急度</label>
         <select id="urgency" name="urgency" required>
-          <option value="通常">通常</option>
-          <option value="高・緊急">高・緊急</option>
+          <option value="通常" {% if form_values.get('urgency', '通常') == '通常' %}selected{% endif %}>通常</option>
+          <option value="高・緊急" {% if form_values.get('urgency') == '高・緊急' %}selected{% endif %}>高・緊急</option>
         </select>
+      </div>
+      <div class="preview-panel" aria-live="polite">
+        <h3>住民向け表示プレビュー</h3>
+        <p><strong>宛先:</strong> <span id="preview-target"></span></p>
+        <p><strong>内容:</strong> <span id="preview-content"></span></p>
+        <p><strong>避難先:</strong> <span id="preview-shelter"></span></p>
+        <p><strong>住民向け公開:</strong> <span id="preview-visibility"></span></p>
+        <p><strong>状態:</strong> 対応中（登録後に発信）</p>
       </div>
       <div class="board-actions"><button type="submit">発信する</button></div>
     </form>
@@ -181,11 +192,24 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   const shelterSelect = document.getElementById('shelter');
-  const customPlace = document.getElementById('custom-place');
-  shelterSelect.addEventListener('change', function() {
-    customPlace.required = shelterSelect.value === '__custom__';
-    if (shelterSelect.value !== '__custom__') customPlace.value = '';
+  const contentInput = document.getElementById('content');
+  const previewTarget = document.getElementById('preview-target');
+  const previewContent = document.getElementById('preview-content');
+  const previewShelter = document.getElementById('preview-shelter');
+  const previewVisibility = document.getElementById('preview-visibility');
+  function updatePreview() {
+    const targetOption = targetSelect.selectedOptions[0];
+    const shelterOption = shelterSelect.selectedOptions[0];
+    previewTarget.textContent = targetSelect.value === '__custom__' ? (customTarget.value || '宛先未入力') : targetOption.textContent;
+    previewContent.textContent = contentInput.value || '発信内容未入力';
+    previewShelter.textContent = shelterSelect.value ? shelterOption.textContent : '指定なし';
+    previewVisibility.textContent = ['住民', '観光客', '住民・観光客'].includes(targetSelect.value) ? '住民向け画面に表示されます' : '住民向け画面には表示されません（内部向け）';
+  }
+  [targetSelect, customTarget, contentInput, shelterSelect].forEach(function(input) {
+    input.addEventListener('input', updatePreview);
+    input.addEventListener('change', updatePreview);
   });
+  updatePreview();
 });
 </script>
 {% endblock %}
