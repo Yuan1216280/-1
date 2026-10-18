@@ -4,31 +4,113 @@
   <meta charset="utf-8">
   <title>{% block title %}防災アプリ{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Noto Sans JP", "Yu Gothic UI", sans-serif;
+      color: #26354a;
+      background: #f5f7fa;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    .site-header { background: #2457a7; color: #fff; }
+    .header-inner {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: min(100% - 40px, 1380px);
+      height: 70px;
+      margin: 0 auto;
+    }
+    .brand { color: inherit; font-size: 22px; font-weight: 700; text-decoration: none; }
+    .menu-toggle {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      place-content: center;
+      gap: 5px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .menu-toggle:hover, .menu-toggle:focus-visible { background: #ffffff20; }
+    .menu-toggle span { width: 22px; height: 2px; background: #fff; }
+    .menu-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    .site-nav[hidden] { display: none; }
+    .site-nav:not([hidden]) {
+      position: absolute;
+      z-index: 1000;
+      top: 60px;
+      right: 0;
+      display: grid;
+      min-width: 220px;
+      gap: 2px;
+      padding: 8px;
+      border: 1px solid #dce3ed;
+      border-radius: 6px;
+      background: #fff;
+      box-shadow: 0 8px 24px #1b35501f;
+      color: #26354a;
+    }
+    .site-nav a { padding: 10px 12px; border-radius: 4px; color: inherit; text-decoration: none; }
+    .site-nav a:hover { background: #edf3fb; color: #2457a7; }
+    .site-nav a:focus-visible { outline: 2px solid #2457a7; outline-offset: 1px; }
+    .nav-status { padding: 8px 12px; color: #68788e; font-size: 13px; }
+    main { padding-bottom: 48px; }
+    @media (max-width: 480px) {
+      .header-inner { width: calc(100% - 32px); height: 62px; }
+      .brand { font-size: 20px; }
+      .site-nav:not([hidden]) { top: 56px; }
+    }
+  </style>
 </head>
 <body>
-  <!-- ヘッダー -->
-  <h1>防災アプリ</h1>
-
-  <!-- ナビゲーション -->
-  <nav>
-    <a href="/">ホーム</a> |
-    <a href="/shelter_search">避難所検索</a> |
-    <a href="/shelter_register">避難所登録</a> |
-    <a href="/board">指示・発信ボード</a>
-    ｜
-    {% if session.logged_in %}
-      ログイン中{% if session.username %}（{{ session.username }}）{% endif %}
-      <a href="/logout">ログアウト</a>
-    {% else %}
-      未ログイン
-      <a href="/login">ログイン</a>
-    {% endif %}
-  </nav>
-  <hr>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/">防災アプリ</a>
+      <button class="menu-toggle" type="button" aria-label="メニューを開く" aria-expanded="false" aria-controls="site-navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="site-nav" id="site-navigation" aria-label="メインメニュー" hidden>
+        <a href="/">ホーム</a>
+        <a href="/shelter_search">避難所検索</a>
+        <a href="/shelter_register">避難所登録</a>
+        <a href="/board">指示・発信ボード</a>
+        {% if session.logged_in %}
+          <span class="nav-status">ログイン中{% if session.username %}（{{ session.username }}）{% endif %}</span>
+          <a href="/logout">ログアウト</a>
+        {% else %}
+          <span class="nav-status">未ログイン</span>
+          <a href="/login">ログイン</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
 
   <main>
-    <!-- ここに子テンプレートの content が入る -->
     {% block content %}{% endblock %}
   </main>
+  <script>
+    const menuToggle = document.querySelector('.menu-toggle');
+    const siteNavigation = document.getElementById('site-navigation');
+
+    menuToggle.addEventListener('click', function() {
+      const isExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
+      menuToggle.setAttribute('aria-expanded', String(!isExpanded));
+      menuToggle.setAttribute('aria-label', isExpanded ? 'メニューを開く' : 'メニューを閉じる');
+      siteNavigation.hidden = isExpanded;
+    });
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && !siteNavigation.hidden) {
+        siteNavigation.hidden = true;
+        menuToggle.setAttribute('aria-expanded', 'false');
+        menuToggle.setAttribute('aria-label', 'メニューを開く');
+        menuToggle.focus();
+      }
+    });
+  </script>
 </body>
 </html>

@@ -1,15 +1,118 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- 避難所マップ -->
-<h2>避難所マップ</h2>
-<div id="shelterMap" style="height: 300px;"></div>
+<style>
+    .home-dashboard {
+        display: grid;
+        width: min(100% - 32px, 910px);
+        gap: 34px;
+        margin: 32px auto 0;
+    }
+    .dashboard-panel {
+        min-width: 0;
+        padding: 27px 28px 28px;
+        border: 1px solid #edf0f4;
+        border-radius: 15px;
+        background: #fff;
+        box-shadow: 0 8px 28px #18334f0a;
+    }
+    .section-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 20px;
+        color: #2457a7;
+        font-size: 21px;
+        font-weight: 700;
+    }
+    .section-heading svg { flex: 0 0 auto; width: 22px; height: 22px; }
+    .map-view {
+        height: clamp(300px, 35vw, 365px);
+        overflow: hidden;
+        border-radius: 10px;
+        background: #d8e7ee;
+    }
+    .weather-heading-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    .weather-heading-row .section-heading { margin: 0; }
+    .refresh-note {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        margin: 0;
+        color: #23834c;
+        font-size: 14px;
+        white-space: nowrap;
+    }
+    .refresh-icon { font-size: 19px; font-weight: 700; }
+    .weather-content {
+        min-height: 142px;
+        padding: 17px 19px;
+        border-radius: 9px;
+        background: #f4f6f8;
+    }
+    .weather-summary { display: grid; gap: 10px; }
+    .weather-place, .weather-meta { display: flex; align-items: center; gap: 9px; margin: 0; }
+    .weather-place { color: #34465a; font-size: 16px; }
+    .weather-meta { color: #69798d; font-size: 13px; }
+    .weather-icon { width: 18px; color: #4d6d91; text-align: center; }
+    .status-line { display: flex; align-items: center; gap: 10px; margin: 0; }
+    .status-line strong { color: #208248; font-size: 16px; }
+    .status-icon {
+        display: inline-grid;
+        flex: 0 0 19px;
+        width: 19px;
+        height: 19px;
+        place-items: center;
+        border-radius: 50%;
+        background: #259454;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+    }
+    .warning-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .warning-list li { display: flex; align-items: center; gap: 10px; color: #9b4c22; font-weight: 700; }
+    .status-icon.is-warning { background: #d87932; }
+    .weather-error { margin: 0; color: #a23c3c; }
+    .loading-state { margin: 0; color: #69798d; }
+    @media (max-width: 600px) {
+        .home-dashboard { width: calc(100% - 24px); gap: 20px; margin-top: 20px; }
+        .dashboard-panel { padding: 20px 16px 18px; border-radius: 12px; }
+        .section-heading { margin-bottom: 15px; font-size: 18px; }
+        .weather-heading-row { align-items: flex-start; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+        .refresh-note { margin-left: 32px; font-size: 13px; }
+        .map-view { height: 330px; }
+        .weather-content { padding: 15px 13px; }
+        .weather-meta { align-items: flex-start; font-size: 12px; }
+    }
+</style>
 
-<!-- 気象警報・注意報 -->
-<h2>青森市 気象警報・注意報</h2>
-<p>10分おきに自動更新されます。</p>
-<div id="weatherContent">
-  <p>読み込み中...</p>
+<div class="home-dashboard">
+    <section class="dashboard-panel" aria-labelledby="shelter-map-heading">
+        <h2 class="section-heading" id="shelter-map-heading">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 5.5 8 12 8 12s8-6.5 8-12a8 8 0 0 0-8-8Zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg>
+            避難所マップ
+        </h2>
+        <div id="shelterMap" class="map-view" aria-label="避難所マップ"></div>
+    </section>
+
+    <section class="dashboard-panel" aria-labelledby="weather-heading">
+        <div class="weather-heading-row">
+            <h2 class="section-heading" id="weather-heading">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 18a5 5 0 0 1-.4-9.98A6.5 6.5 0 0 1 19 9.5c0 .18-.01.35-.02.52A4.5 4.5 0 0 1 18.5 19H7v-1Zm-1-9.5a3.5 3.5 0 0 0 .5 6.96h11a3 3 0 0 0 .26-5.99l-.94-.08.13-.93A4.5 4.5 0 0 0 8 8.1l-.27.88-.92-.3A3.5 3.5 0 0 0 6 8.5Z"/><path d="M4 3v2H2v1h2v2h1V6h2V5H5V3z"/></svg>
+                青森市 気象警報・注意報
+            </h2>
+            <p class="refresh-note"><span class="refresh-icon" aria-hidden="true">⟳</span>10分おきに自動更新</p>
+        </div>
+        <div id="weatherContent" class="weather-content" aria-live="polite">
+            <p class="loading-state">読み込み中...</p>
+        </div>
+    </section>
 </div>
 
 <!-- Leaflet の読み込み -->
@@ -18,8 +121,8 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 地図の初期化（藤沢市周辺を中心に設定）
-    const map = L.map('shelterMap').setView([35.3390, 139.4903], 12);
+    // 地図の初期化（青森市周辺を中心に設定）
+    const map = L.map('shelterMap').setView([40.8246, 140.7400], 12);
 
     // OpenStreetMapタイルを追加
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -44,26 +147,28 @@ document.addEventListener('DOMContentLoaded', function() {
         const weatherContent = document.getElementById('weatherContent');
 
         if (data.error) {
-            weatherContent.innerHTML = '<p>気象情報の取得に失敗しました</p>';
+            weatherContent.innerHTML = '<p class="weather-error">気象情報の取得に失敗しました</p>';
             return;
         }
 
         let warningsHtml = '';
         if (data.warnings && data.warnings.length > 0) {
-            warningsHtml = '<ul>';
+            warningsHtml = '<ul class="warning-list">';
             data.warnings.forEach(warning => {
-                warningsHtml += `<li>${warning.name}（${warning.status}）</li>`;
+                warningsHtml += `<li><span class="status-icon is-warning" aria-hidden="true">!</span><span>${warning.name}（${warning.status}）</span></li>`;
             });
             warningsHtml += '</ul>';
         } else {
-            warningsHtml = '<p>現在、警報・注意報は発表されていません</p>';
+            warningsHtml = '<p class="status-line"><span class="status-icon" aria-hidden="true">✓</span><strong>現在、警報・注意報は発表されていません</strong></p>';
         }
 
         weatherContent.innerHTML = `
-            <p>対象地域: ${data.area_name || '青森市'}</p>
+            <div class="weather-summary">
+            <p class="weather-place"><span class="weather-icon" aria-hidden="true">●</span>${data.area_name || '青森市'}</p>
             ${warningsHtml}
-            <p>最終確認: <span id="lastFetchTime">${data.last_fetch_time || '更新中...'}</span></p>
-            <p>気象庁最終発表: ${data.report_time || '不明'}</p>
+            <p class="weather-meta"><span class="weather-icon" aria-hidden="true">◷</span>データ取得: <span id="lastFetchTime">${data.last_fetch_time || '更新中...'}</span></p>
+            <p class="weather-meta"><span class="weather-icon" aria-hidden="true">◌</span>気象庁最終発表: ${data.report_time || '不明'}</p>
+            </div>
         `;
     }
 
